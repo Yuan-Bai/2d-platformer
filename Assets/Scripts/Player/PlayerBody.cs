@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using Platformer.Motor;
 using Platformer.States;
@@ -35,6 +34,7 @@ namespace Platformer.Player
         private PlayerStateContext _ctx;
         private bool _grounded;
         private bool _dead;
+        private float _respawnDeadline; // 死亡冻结结束时刻（realtime）：时间戳计时，不用协程
         private Vector2 _pendingPlatformDelta;
         private bool _downHeld;
         private int _playerLayer;
@@ -88,10 +88,15 @@ namespace Platformer.Player
                 _pendingPlatformDelta = Vector2.zero;
             }
 
-            // 死亡冻结帧：暂停一切运动写（保持随平台移动），等重生
+            // 死亡冻结帧：暂停一切运动写（保持随平台移动），冻结结束重生。
+            // 时间戳计时而非协程（ADR-0005 修订）：协程被 StopAllCoroutines/禁用打断时
+            // _dead 永不复位 → 玩家永久冻结；时间戳路径与协程生命周期解耦，不留死锁。
             if (_dead)
             {
-                _rb.velocity = carryVelocity;
+                if (Time.realtimeSinceStartup >= _respawnDeadline)
+                    Respawn();
+                else
+                    _rb.velocity = carryVelocity;
                 return;
             }
 
@@ -158,7 +163,7 @@ namespace Platformer.Player
         {
             if (_dead) return;
             _dead = true;
-            StartCoroutine(DeathSequence());
+            _respawnDeadline = Time.realtimeSinceStartup + deathFreezeSeconds;
         }
 
         /// <summary>查找脚下的单向平台 collider（下穿忽略用）。</summary>
@@ -173,9 +178,9 @@ namespace Platformer.Player
             return hit.collider;
         }
 
-        private IEnumerator DeathSequence()
+        /// <summary>重生：传送回 RespawnPosition（上抬防卡碰撞），清速度与输入，解除死亡冻结。</summary>
+        private void Respawn()
         {
-            yield return new WaitForSecondsRealtime(deathFreezeSeconds);
             _rb.MovePosition(new Vector2(RespawnPosition.x, RespawnPosition.y + respawnLift));
             _rb.velocity = Vector2.zero;
             _motor.Reset();
