@@ -47,6 +47,24 @@ namespace Platformer.Motor
         /// <summary>当前水平速度。</summary>
         public float HorizontalSpeed => _velocity.x;
 
+        /// <summary>
+        /// 外置冲量入口（弹簧等机关用）：直接设竖直速度，不经过跳跃判定——
+        /// 不消耗跳跃缓冲、不受跳切管辖、不依赖地面。
+        /// </summary>
+        public void Bounce(float verticalVelocity)
+        {
+            _velocity.y = verticalVelocity;
+            _rising = false;
+        }
+
+        /// <summary>死亡重生时清空内部状态（速度与跳跃标志）；计时器由下一帧的 grounded 事实自然刷新。</summary>
+        public void Reset()
+        {
+            _velocity = Vector2.zero;
+            _rising = false;
+            _jumpHeld = false;
+        }
+
         public MoveCommand Tick(PlayerMoveInput input, bool grounded, float dt)
         {
             // 1. 计时器推进；落地刷新土狼窗口

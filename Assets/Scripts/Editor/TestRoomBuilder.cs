@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Platformer.Cameras;
+using Platformer.Mechanics;
 using Platformer.Player;
 
 namespace Platformer.EditorTools
@@ -35,6 +36,14 @@ namespace Platformer.EditorTools
             CreatePlatform("Step3", new Vector3(3f, 0.8f, 0f), new Vector2(4f, 0.6f), placeholder);
             CreatePlatform("FloatPlatform", new Vector3(7.5f, 2.8f, 0f), new Vector2(3f, 0.6f), placeholder);
             CreatePlatform("HighPlatform", new Vector3(11f, 4.5f, 0f), new Vector2(3f, 0.6f), placeholder);
+
+            // M2 机制样例（颜色区分：单向平台青 / 弹簧黄 / 移动平台蓝 / 尖刺红 / 重生点绿）
+            // 单向平台顶 0.25：玩家跳高 2.41（中心最高 0.91）可轻松站上
+            CreateOneWayPlatform("OneWay", new Vector3(-9f, 0f, 0f), new Vector2(4f, 0.5f), placeholder);
+            CreateTriggerProp("Bumper", new Vector3(6.2f, -1.6f, 0f), new Color(1f, 0.9f, 0.3f), placeholder, typeof(Bumper));
+            CreateMovingPlatform("MovingPlatform", new Vector3(-2.5f, 2.6f, 0f), new Vector2(3f, 0.5f), placeholder);
+            CreateTriggerProp("Spikes", new Vector3(9.5f, -1.9f, 0f), new Color(1f, 0.25f, 0.2f), placeholder, typeof(Hazard));
+            CreateTriggerProp("Checkpoint", new Vector3(7.8f, -1.3f, 0f), new Color(0.3f, 0.9f, 0.4f), placeholder, typeof(Checkpoint));
 
             // 玩家：1x1 方块占位 + 物理 + 输入 + 身体
             var player = new GameObject("Player");
@@ -69,6 +78,49 @@ namespace Platformer.EditorTools
             sr.color = new Color(0.36f, 0.52f, 0.36f);
             var col = go.AddComponent<BoxCollider2D>();
             col.size = Vector2.one; // 随 scale 缩放为 size
+        }
+
+        private static void CreateOneWayPlatform(string name, Vector3 pos, Vector2 size, Sprite sprite)
+        {
+            var go = new GameObject(name);
+            go.transform.position = pos;
+            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.color = new Color(0.4f, 0.8f, 0.9f);
+            var col = go.AddComponent<BoxCollider2D>();
+            col.size = Vector2.one;
+            go.AddComponent<OneWayPlatform>();
+            // 显式设层（双保险）：不依赖组件 Reset() 在编辑器 AddComponent 时的调用时机
+            int layer = LayerMask.NameToLayer("OneWayPlatform");
+            if (layer >= 0) go.layer = layer;
+        }
+
+        private static void CreateMovingPlatform(string name, Vector3 pos, Vector2 size, Sprite sprite)
+        {
+            var go = new GameObject(name);
+            go.transform.position = pos;
+            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.color = new Color(0.4f, 0.5f, 1f);
+            var col = go.AddComponent<BoxCollider2D>();
+            col.size = Vector2.one;
+            var mover = go.AddComponent<MovingPlatform>();
+            mover.waypoints = new[] { new Vector2(5f, 0f), new Vector2(0f, 0f) }; // ping-pong
+            mover.speed = 1.5f;
+        }
+
+        private static void CreateTriggerProp(string name, Vector3 pos, Color color, Sprite sprite, System.Type component)
+        {
+            var go = new GameObject(name);
+            go.transform.position = pos;
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.color = color;
+            var col = go.AddComponent<BoxCollider2D>();
+            col.isTrigger = true;
+            go.AddComponent(component);
         }
 
         /// <summary>生成或加载 1x1 单位的白色占位方块（4x4px，PPU=4，Point 过滤）。</summary>

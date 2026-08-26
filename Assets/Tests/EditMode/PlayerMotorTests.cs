@@ -161,5 +161,27 @@ namespace Platformer.Tests
 
             Assert.Less(airDelta, groundDelta, "空中加速度应弱于地面（空中控制）");
         }
+
+        [Test]
+        public void Bounce_SetsVerticalVelocity_WithoutJumpConditions()
+        {
+            // 空中、无输入、土狼已过期：Bounce 依然直接设速度
+            Step(Input(), grounded: false, frames: 10);
+            _motor.Bounce(14f);
+            var cmd = Step(Input(), grounded: false);
+            // 冲量后一帧被下落重力扣一点（_rising=false → FallGravity）
+            Assert.AreEqual(14f - _s.FallGravity * Dt, cmd.Velocity.y, Eps, "弹簧冲量应直接生效且不受跳跃判定管辖");
+        }
+
+        [Test]
+        public void Bounce_DoesNotConsumeJumpBuffer()
+        {
+            // 空中按跳（缓冲排队）→ 弹弹簧 → 落地前缓冲仍在 → 落地自动起跳
+            Step(Input(queued: true), grounded: false);
+            _motor.Bounce(14f);
+            Step(Input(), grounded: false, frames: 4); // 0.067s < 缓冲 0.1s，留足浮点余量
+            var cmd = Step(Input(), grounded: true);
+            Assert.Greater(cmd.Velocity.y, 0f, "Bounce 不应消耗已排队的跳跃缓冲");
+        }
     }
 }

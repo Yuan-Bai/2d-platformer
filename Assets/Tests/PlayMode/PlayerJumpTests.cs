@@ -1,8 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Platformer.Player;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.TestTools;
 
 namespace Platformer.Tests
@@ -15,17 +17,26 @@ namespace Platformer.Tests
     public class PlayerJumpTests : InputTestFixture
     {
         private Keyboard _kb;
+        private readonly List<GameObject> _spawned = new List<GameObject>();
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
             _kb = InputSystem.AddDevice<Keyboard>();
+            _spawned.Clear();
         }
 
         [TearDown]
         public override void TearDown()
         {
+            // 兜底清理：测试中断（断言失败/未处理日志）时，场景残留会污染后续测试
+            //（泄漏的 InputReader 会别名到下一测试的键盘缓冲区，触发 paranoid 缓存错误）
+            foreach (var go in _spawned)
+                if (go != null) Object.DestroyImmediate(go);
+            _spawned.Clear();
+            if (_kb != null && _kb.added)
+                InputSystem.RemoveDevice(_kb);
             base.TearDown();
         }
 
@@ -34,11 +45,13 @@ namespace Platformer.Tests
         {
             // 最小场景：地面 + 玩家
             var ground = new GameObject("Ground");
+            _spawned.Add(ground);
             ground.transform.position = new Vector3(0f, -2f, 0f);
             var gCol = ground.AddComponent<BoxCollider2D>();
             gCol.size = new Vector2(40f, 1f);
 
             var player = new GameObject("Player");
+            _spawned.Add(player);
             player.transform.position = new Vector3(0f, -1.1f, 0f);
             player.AddComponent<SpriteRenderer>();
             var pCol = player.AddComponent<BoxCollider2D>();
@@ -53,7 +66,7 @@ namespace Platformer.Tests
 
             // 起跳：按住空格 3 帧（全程按住 → 满跳高约 2.5 单位，空中约 50 帧）
             // 注意：PlayMode 下 InputSystem 自动更新，不手动调用 Update（避免双更新重置帧事件）
-            Press(_kb.spaceKey);
+            InputSystem.QueueStateEvent(_kb, new KeyboardState(Key.Space));
             yield return null;
             for (int i = 0; i < 3; i++)
             {
@@ -70,22 +83,18 @@ namespace Platformer.Tests
             Assert.Less(vyBefore, 0f, $"前置条件不成立：30 帧后应已开始下落（vy={vyBefore}）");
 
             // 松开再按下：制造一次新的"跳跃按下"事件（此时土狼窗口 0.1s 已远超过期）
-            Release(_kb.spaceKey);
+            InputSystem.QueueStateEvent(_kb, new KeyboardState());
             yield return null;
-            Press(_kb.spaceKey);
+            InputSystem.QueueStateEvent(_kb, new KeyboardState(Key.Space));
             yield return null;
             yield return new WaitForFixedUpdate();
 
             float vyAfter = rb.velocity.y;
-            Release(_kb.spaceKey);
+            InputSystem.QueueStateEvent(_kb, new KeyboardState());
 
             Assert.Less(vyAfter, 0f, $"空中土狼过期后按跳不应起跳（vyBefore={vyBefore}, vyAfter={vyAfter}）");
 
-            // 清理顺序：先销毁对象并等一帧，再移除测试键盘
-            Object.Destroy(player);
-            Object.Destroy(ground);
-            yield return null;
-            InputSystem.RemoveDevice(_kb);
+            // 场景销毁与键盘移除统一由 TearDown 兜底执行（测试中断时也不会泄漏）
         }
     }
 }
