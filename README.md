@@ -1,6 +1,6 @@
-# 2d-platformer
+# 狐跃林间（Foxy's Forest）
 
-2D 横板平台跳跃小作品（个人学习项目，纯平台跳跃、无战斗）。正式游戏名待关卡主题确定后另起。
+2D 横板平台跳跃小作品（个人学习项目，纯平台跳跃、无战斗）。森林主题，主角 Foxy；正式命名于 M3：「狐跃林间 / Foxy's Forest」。
 
 ## 技术栈
 
@@ -16,17 +16,32 @@
 | 空格 | 跳跃（按住跳更高；土狼时间 + 跳跃缓冲） |
 | S / ↓ | 从单向平台下落穿过 |
 
+## 关卡编辑（两条产线）
+
+| 产线 | 做法 | 适用 |
+|---|---|---|
+| JSON 管线 | 编辑 `Assets/Levels/*.json`（`map` 字符串 + 机关元数据）→ 菜单 `Tools/Platformer/Build All Levels` 重新生成 | 结构性改关（地形/机关布局） |
+| 手工管线 | Tile Palette 刷 Ground(Tilemap) + 拖 `Assets/Prefabs/` 预制体（`New Level Scaffold` 建脚手架） | 微调/实验关 |
+
+字符对照：`#`=地形、`=`=单向平台、`M`=移动平台、`B`=弹簧、`^`=尖刺、`C`=重生点、`o`=樱桃、`D`=门、`S`=路牌、`P`=出生点。1 字符 = 1 米。
+
+注意：**手工改场景对象会在下次 Build All Levels 时被覆盖**；共享对象（Player/CameraRig）改参数请改 `Assets/Prefabs/` 下对应预制体。
+
 ## 代码结构
 
 ```
 Assets/Scripts/
-├── Motor/        纯 C# 运动核心（重力/土狼/缓冲/可变跳高/跳切/终端速度/空中控制/冲量）
+├── Motor/        纯 C# 运动核心（重力/土狼/缓冲/跳切/终端速度/空中控制/冲量）
 ├── States/       分层状态机（Idle/Run/Jump/Fall），只做决策不碰物理
-├── Player/       Unity 适配层（PlayerBody 唯一写 Rigidbody2D.velocity；InputReader 输入）
-├── Mechanics/    机关（单向平台/弹簧/移动平台/尖刺/重生点）
-├── Camera/       Cinemachine 相机封装
-└── Editor/       Tools/Platformer/Build Test Room 一键生成测试房
-Assets/Tests/     EditMode 19 + PlayMode 6（Test Runner 运行）
+├── Player/       Unity 适配层（PlayerBody 唯一写 Rigidbody2D.velocity；InputReader 输入；
+│                 PlayerVisuals + PlayerAnimSelector 帧动画）
+├── Mechanics/    机关（单向平台/弹簧/移动平台/尖刺/重生点/樱桃/门/路牌）
+├── Camera/       PlayerCameraRig（Cinemachine 相机封装）
+├── Levels/       关卡数据（LevelData 解析 + LevelValidator 校验）
+├── UI/           HUD（樱桃计数/提示栏/通关画面）
+└── Editor/       LevelKit（组件装配单一事实源）、LevelBuilder（JSON→场景）、
+                  TestRoomBuilder、SunnyLandArtTools（素材批处理）
+Assets/Tests/     EditMode 43 + PlayMode 12（Test Runner 运行）
 ```
 
 ## 素材与许可
@@ -39,8 +54,8 @@ Assets/Tests/     EditMode 19 + PlayMode 6（Test Runner 运行）
 ## 里程碑
 
 - [x] M0 初始化（2022 LTS 2D URP、装包、素材导入、CC0 许可核实）
-- [x] M1 手感核心（运动深模块 + 状态机 + 19 测试 + 两个物理根因修复）
+- [x] M1 手感核心（运动深模块 + 状态机 + 测试 + 物理根因修复）
 - [x] M2 关卡机制（单向平台/弹簧/移动平台/尖刺+重生）
-- [ ] M3 关卡内容（教学关 + 3~4 正式关）
-- [ ] M4 收尾（主菜单/音效/打包）
+- [x] M3 关卡内容（教学关 + 3 正式关 + 通关画面；Player/CameraRig 预制体化；碰撞几何生成修复）
+- [ ] M4 收尾（跨场景常驻重构、主菜单/音效/打包）
 - [ ] M5 动作扩展（冲刺/滑墙/蹬墙跳/二段跳——2D 沙盒验证，为 3D 项目打基础）
