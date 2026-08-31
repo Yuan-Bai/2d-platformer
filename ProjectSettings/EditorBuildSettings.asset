@@ -6,6 +6,18 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 8c9cfa26abfee488c85f1582747f6a02
+    path: Assets/Scenes/Levels/01-Tutorial.unity
+    guid: b71979a8ea7c697449585f817565966c
+  - enabled: 1
+    path: Assets/Scenes/Levels/02-ForestPath.unity
+    guid: 06ff9862413fbad4998da2211a59341a
+  - enabled: 1
+    path: Assets/Scenes/Levels/03-SkyBridge.unity
+    guid: c875fc1d2778fe84aaaa48d3c364779c
+  - enabled: 1
+    path: Assets/Scenes/Levels/04-ThornForest.unity
+    guid: 75a568077c6a640478d1aeb7351ef3b6
+  - enabled: 1
+    path: Assets/Scenes/Levels/05-GameClear.unity
+    guid: fe4f6ebed07684e45bfc15efea68ba93
   m_configObjects: {}

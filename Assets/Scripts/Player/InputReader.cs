@@ -19,6 +19,18 @@ namespace Platformer.Player
         public bool DownHeld { get; private set; } // 下落穿过单向平台（S / ↓）
 
         private void OnEnable() => _kb = Keyboard.current;
+
+        /// <summary>
+        /// 禁用即归零（M3 补充纪律）：保证"禁用输入 = 中性输入"。
+        /// LevelManager 过关冻结依赖此不变量——仅禁用组件会残留最后一次按键状态，玩家会持续奔跑。
+        /// </summary>
+        private void OnDisable()
+        {
+            MoveAxis = 0f;
+            JumpHeld = false;
+            DownHeld = false;
+            _pendingJump = false;
+        }
         
         private void Update()
         {

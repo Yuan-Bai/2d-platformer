@@ -39,6 +39,8 @@ namespace Platformer.Player
         private bool _downHeld;
         private int _playerLayer;
         private int _oneWayLayer;
+        private int _interactableLayer; // 触发器机关层：不参与地面判定（Sign/樱桃等 trigger 会被 BoxCast 命中 → 空中误判 grounded）
+        private int _ignoreRaycastLayer; // CameraBounds 所在层：不参与地面判定（实心多边形被 trigger 化后仍会被 BoxCast 命中）
         private Collider2D _ignoredOneWay; // 下穿期间被忽略的单向平台 collider
 
         public PlayerStateId CurrentState => _stateMachine.Current;
@@ -70,6 +72,8 @@ namespace Platformer.Player
             // 玩家独立层（ADR-0005）：单向平台下穿切换的基础 + 地面探测排除自身的第二道保险
             _playerLayer = LayerMask.NameToLayer("Player");
             _oneWayLayer = LayerMask.NameToLayer("OneWayPlatform");
+            _interactableLayer = LayerMask.NameToLayer("Interactable");
+            _ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
             if (_playerLayer >= 0) gameObject.layer = _playerLayer;
 
             RespawnPosition = transform.position;
@@ -138,6 +142,11 @@ namespace Platformer.Player
         /// </summary>
         private bool CheckGrounded()
         {
+            // 上升段不算接地（bug 修复）：跳跃上升穿出单向平台顶面时，脚底 BoxCast 会在
+            // 0.08m 探测距离内命中平台顶 → grounded 误判 1 帧 → 跳跃缓冲被意外消费（"穿平台多一跳"根因）。
+            // 用 Motor 自身竖直速度（不含平台 carry）判断：站在上升的移动平台上仍正确接地。
+            if (_motor.VerticalSpeed > 0.01f) return false;
+
             Bounds b = _col.bounds;
             const float boxHeight = 0.05f;
             const float gap = 0.02f; // > contact offset(0.01)，保证膨胀后仍不与自身重叠
@@ -146,7 +155,12 @@ namespace Platformer.Player
 
             LayerMask mask = groundLayers;
             if (_playerLayer >= 0) mask &= ~(1 << _playerLayer);          // 双保险：不探测自己
-            if (_downHeld && _oneWayLayer >= 0) mask &= ~(1 << _oneWayLayer); // 下穿时单向平台不算地面
+            if (_ignoreRaycastLayer >= 0) mask &= ~(1 << _ignoreRaycastLayer); // confiner 边界等纯几何 collider 不算地面
+            if (_interactableLayer >= 0) mask &= ~(1 << _interactableLayer);   // 提示牌/樱桃等 trigger 不算地面（否则空中误判 grounded → 无限连跳）
+            // 只在真正忽略了一个脚下平台（下穿进行中）时排除单向平台层（bug 修复）：
+            // 此前按住"下"就排除 → 从上方落到单向平台顶面时被平台托住却 grounded 恒 false，
+            // 卡在 Fall 状态/下降帧（"按住 S 落平台保持跳跃末帧"根因）。
+            if (_downHeld && _ignoredOneWay != null && _oneWayLayer >= 0) mask &= ~(1 << _oneWayLayer);
 
             RaycastHit2D hit = Physics2D.BoxCast(origin, size, 0f, Vector2.down, groundCheckDistance, mask);
             return hit.collider != null;

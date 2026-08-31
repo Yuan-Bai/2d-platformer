@@ -115,7 +115,7 @@ if (_dead) _rb.velocity = carryVelocity;       // 死亡冻结期仍随平台走
 | `Assets/Scripts/Player/PlayerBody.cs` | 移动平台携带改为速度补偿；删除 `[DEBUG-down]` 临时探针 |
 | `Assets/Scripts/Mechanics/MovingPlatform.cs` | 仅注释更新（位移补偿 → 速度补偿），逻辑未动 |
 
-## 遗留观察（非阻塞）
+## 遗留观察（非阻塞）（已修复）
 
 - `MovingPlatform` 仍用 `transform.position` 直写驱动 kinematic 刚体（依赖 `AutoSyncTransforms=0` 下的模拟步同步）；规范做法是 kinematic 体用 `rb.MovePosition`。当前可工作，属可选改进。
 - 死亡重生（`DeathSequence`）依赖 `WaitForSecondsRealtime` 协程跑完才能复位 `_dead`；若协程被禁用/销毁打断会永久冻结——目前无触发路径，但值得留意。

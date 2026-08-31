@@ -27,3 +27,7 @@ Thumbs.db
 
 # 测试结果
 TestResults/
+
+# Unity 测试自动生成的临时场景
+InitTestScene*.unity
+InitTestScene*.unity.meta

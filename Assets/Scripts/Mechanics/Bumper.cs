@@ -11,10 +11,16 @@ namespace Platformer.Mechanics
     {
         [SerializeField] private float bounceVelocity = 14f;
 
+        /// <summary>弹起已触发（供视觉层订阅：BumperVisual 的压缩动画）。纯表现事件，不改手感。</summary>
+        public event System.Action Bounced;
+
         private void OnTriggerEnter2D(Collider2D other)
         {
             if (other.TryGetComponent<PlayerBody>(out var player))
+            {
                 player.Bounce(bounceVelocity);
+                Bounced?.Invoke();
+            }
         }
     }
 }

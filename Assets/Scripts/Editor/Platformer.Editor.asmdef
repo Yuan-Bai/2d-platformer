@@ -3,7 +3,8 @@
   "rootNamespace": "Platformer",
   "references": [
     "Platformer.Game",
-    "Cinemachine"
+    "Cinemachine",
+    "Unity.2D.Sprite.Editor"
   ],
   "includePlatforms": [
     "Editor"
