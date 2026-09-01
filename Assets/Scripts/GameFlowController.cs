@@ -68,6 +68,9 @@ namespace Platformer
         /// <summary>全游戏樱桃总数（通关面板分母；StartGame 起随关卡加载累加）。</summary>
         public int TotalInGame { get; private set; }
 
+        /// <summary>是否暂停（Playing 态按 Esc 冻结 Time.timeScale；Time.timeScale 由本类独占管理）。</summary>
+        public bool IsPaused { get; private set; }
+
         private int _levelIndex = -1; // 当前关卡在 levelSceneNames 中的索引（-1 = 未加载关卡）
         private int _totalInLevel;
         private bool _completing;
@@ -76,6 +79,7 @@ namespace Platformer
         private AsyncOperation _loading;      // 进行中的 Additive 加载
         private int _pendingLevelIndex = -1;  // 加载完成后要进入的关卡索引
         private string _pendingLevelName;
+        private InputReader _input;           // 常驻玩家输入（Start 缓存；暂停键消费）
 
         private void Awake()
         {
@@ -87,6 +91,11 @@ namespace Platformer
             Instance = this;
         }
 
+        private void Start()
+        {
+            _input = FindObjectOfType<InputReader>();
+        }
+
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
@@ -94,6 +103,13 @@ namespace Platformer
 
         private void Update()
         {
+            // 暂停键消费（Playing 态才可暂停；输入读取细节封装在 InputReader，本类只消费语义）
+            if (State == FlowState.Playing && _input != null && _input.PausePressed)
+            {
+                if (IsPaused) ResumeGame();
+                else PauseGame();
+            }
+
             if (_completing && Time.realtimeSinceStartup >= _loadDeadline)
             {
                 _completing = false;
@@ -114,6 +130,7 @@ namespace Platformer
         /// <summary>主菜单「开始游戏」：清空累计 → 加载第一关。</summary>
         public void StartGame()
         {
+            ResumeGame(); // 防御：暂停中退出到菜单再开始时，timeScale 必须复位
             TotalCollected = 0;
             TotalInGame = 0;
             CollectedInLevel = 0;
@@ -123,8 +140,10 @@ namespace Platformer
         /// <summary>回到主菜单：卸载当前关卡场景（若已加载）→ Menu 状态。</summary>
         public void ReturnToMenu()
         {
+            ResumeGame();
             UnloadLevel();
             CollectedInLevel = 0;
+            CherryHud.Instance?.SetVisible(false); // M4b：菜单态隐藏 HUD
             State = FlowState.Menu;
         }
 
@@ -135,6 +154,24 @@ namespace Platformer
 #else
             Application.Quit();
 #endif
+        }
+
+        // ==================== 暂停（M4b：Esc 暂停菜单） ====================
+
+        /// <summary>暂停游戏（仅 Playing 态有效）：冻结时间刻度。菜单/过关态不可暂停。</summary>
+        public void PauseGame()
+        {
+            if (State != FlowState.Playing || IsPaused) return;
+            IsPaused = true;
+            Time.timeScale = 0f;
+        }
+
+        /// <summary>恢复游戏：还原时间刻度。任何入口流转前必须先恢复（timeScale 独占管理不变量）。</summary>
+        public void ResumeGame()
+        {
+            if (!IsPaused) return;
+            IsPaused = false;
+            Time.timeScale = 1f;
         }
 
         // ==================== 关卡内事件（机关层调用） ====================
@@ -151,6 +188,7 @@ namespace Platformer
         public void CompleteLevel()
         {
             if (_completing || State != FlowState.Playing) return;
+            ResumeGame(); // 防御：切关时序依赖真实时间推进（timeScale=0 会卡死延时）
             _completing = true;
             State = FlowState.LevelClear;
             SetInputEnabled(false);
@@ -220,6 +258,7 @@ namespace Platformer
             _totalInLevel = config != null ? config.TotalCherries : 0;
             TotalInGame += _totalInLevel;
             CollectedInLevel = 0;
+            CherryHud.Instance?.SetVisible(true); // M4b：进入关卡恢复 HUD（菜单态曾隐藏）
             CherryHud.Instance?.SetCollected(0, _totalInLevel);
 
             // 玩家重置到新关出生点：位置/速度/重生点/输入缓冲全清（复用死亡重生同一条重置路径）
@@ -231,6 +270,7 @@ namespace Platformer
             rig?.Bind(player.transform, anchor != null ? anchor.Bounds : null);
 
             SetInputEnabled(true);
+            ResumeGame(); // 防御：暂停中不应触发切关，但保险起见进入新关前 timeScale 必为 1
             State = FlowState.Playing;
         }
 

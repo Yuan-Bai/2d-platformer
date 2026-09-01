@@ -30,6 +30,7 @@ namespace Platformer.Tests
         [TearDown]
         public override void TearDown()
         {
+            Time.timeScale = 1f; // 暂停测试的全局副作用清理（timeScale 是进程级全局）
             foreach (var go in _spawned)
                 if (go != null) Object.DestroyImmediate(go);
             _spawned.Clear();
@@ -117,6 +118,70 @@ namespace Platformer.Tests
             Assert.IsTrue(playerGo != null, "玩家是常驻层对象，回菜单不销毁");
             for (int i = 0; i < 5; i++) yield return null; // 异步卸载完成
             Assert.IsFalse(SceneManager.GetSceneByName(FlowTestSupport.LevelA).isLoaded, "关卡场景应已卸载");
+        }
+
+        // ==================== M4b 暂停（Esc 暂停菜单的状态机部分） ====================
+
+        /// <summary>暂停只在 Playing 态有效：Menu 态 PauseGame 应被忽略（菜单不冻结时间）。</summary>
+        [UnityTest]
+        public IEnumerator Pause_OnlyAllowedInPlayingState()
+        {
+            Track(PlayerTestScene.CreatePlayer(Vector3.zero));
+            var flow = CreateFlow(new[] { FlowTestSupport.LevelA });
+            Assert.AreEqual(FlowState.Menu, flow.State);
+
+            flow.PauseGame();
+            Assert.IsFalse(flow.IsPaused, "Menu 态不可暂停");
+            Assert.AreEqual(1f, Time.timeScale, "Menu 态 timeScale 不受影响");
+
+            flow.StartGame();
+            yield return FlowTestSupport.WaitUntilState(flow, FlowState.Playing);
+
+            flow.PauseGame();
+            Assert.IsTrue(flow.IsPaused, "Playing 态可暂停");
+            Assert.AreEqual(0f, Time.timeScale, "暂停冻结时间刻度");
+        }
+
+        /// <summary>暂停/恢复循环：timeScale 0↔1；恢复后不残留暂停标记。</summary>
+        [UnityTest]
+        public IEnumerator PauseAndResume_FreezesAndRestoresTimeScale()
+        {
+            Track(PlayerTestScene.CreatePlayer(Vector3.zero));
+            var flow = CreateFlow(new[] { FlowTestSupport.LevelA });
+            flow.StartGame();
+            yield return FlowTestSupport.WaitUntilState(flow, FlowState.Playing);
+
+            flow.PauseGame();
+            Assert.IsTrue(flow.IsPaused);
+            Assert.AreEqual(0f, Time.timeScale);
+
+            flow.ResumeGame();
+            Assert.IsFalse(flow.IsPaused);
+            Assert.AreEqual(1f, Time.timeScale);
+
+            // 重复 Resume 幂等（不抛、状态不变）
+            flow.ResumeGame();
+            Assert.AreEqual(1f, Time.timeScale);
+        }
+
+        /// <summary>暂停中回主菜单：ReturnToMenu 必须先恢复 timeScale（否则菜单态时间冻结）。</summary>
+        [UnityTest]
+        public IEnumerator PauseThenReturnToMenu_RestoresTimeScale()
+        {
+            Track(PlayerTestScene.CreatePlayer(Vector3.zero));
+            var flow = CreateFlow(new[] { FlowTestSupport.LevelA });
+            flow.StartGame();
+            yield return FlowTestSupport.WaitUntilState(flow, FlowState.Playing);
+
+            flow.PauseGame();
+            Assert.AreEqual(0f, Time.timeScale);
+
+            flow.ReturnToMenu();
+            Assert.AreEqual(FlowState.Menu, flow.State);
+            Assert.IsFalse(flow.IsPaused);
+            Assert.AreEqual(1f, Time.timeScale, "回菜单必须恢复时间刻度");
+
+            yield return null;
         }
     }
 }

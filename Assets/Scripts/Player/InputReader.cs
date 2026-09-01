@@ -18,6 +18,9 @@ namespace Platformer.Player
         public bool JumpHeld { get; private set; }
         public bool DownHeld { get; private set; } // 下落穿过单向平台（S / ↓）
 
+        /// <summary>暂停键按下沿（Esc）。wasPressedThisFrame 整帧有效，跨组件读取无执行顺序依赖。</summary>
+        public bool PausePressed { get; private set; }
+
         private void OnEnable() => _kb = Keyboard.current;
 
         /// <summary>
@@ -30,6 +33,7 @@ namespace Platformer.Player
             JumpHeld = false;
             DownHeld = false;
             _pendingJump = false;
+            PausePressed = false;
         }
         
         private void Update()
@@ -46,6 +50,7 @@ namespace Platformer.Player
             JumpHeld = _kb.spaceKey.isPressed;
             DownHeld = _kb.sKey.isPressed || _kb.downArrowKey.isPressed;
             if (_kb.spaceKey.wasPressedThisFrame) _pendingJump = true;
+            PausePressed = _kb.escapeKey.wasPressedThisFrame;
         }
 
         /// <summary>构建本固定步的输入快照；取走锁存的跳跃事件。</summary>
