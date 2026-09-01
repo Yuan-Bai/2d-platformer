@@ -215,6 +215,13 @@ namespace Platformer
         {
             UnloadLevel();
 
+            // 空列表/越界守卫（注释承诺的空列表合法）：直通通关面板——末关之后的语义
+            if (index >= levelSceneNames.Length)
+            {
+                State = FlowState.GameClear;
+                return;
+            }
+
             string name = levelSceneNames[index];
             _pendingLevelIndex = index;
             _pendingLevelName = name;

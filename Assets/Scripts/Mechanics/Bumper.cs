@@ -19,6 +19,7 @@ namespace Platformer.Mechanics
             if (other.TryGetComponent<PlayerBody>(out var player))
             {
                 player.Bounce(bounceVelocity);
+                AudioManager.Instance?.PlayBumper();
                 Bounced?.Invoke();
             }
         }

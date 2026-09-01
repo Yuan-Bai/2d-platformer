@@ -22,6 +22,7 @@ namespace Platformer.Player
         private SpriteRenderer _sr;
         private PlayerAnimSelector _selector;
         private float _facing = 1f;
+        private PlayerStateId _lastState;
 
         /// <summary>生成器装配入口：注入 Foxy 帧序列。fall 不注入（Awake 自动回退 jump 末帧，ADR-0008）。</summary>
         public void Configure(Sprite[] idle, Sprite[] run, Sprite[] jump)
@@ -57,12 +58,18 @@ namespace Platformer.Player
             }
             _sr.flipX = _facing < 0f;
 
+            // 跳跃音效（M4c）：进入 Jump 状态的上升沿触发一次（表现层订阅状态输出，与动画同构）
+            var state = body.CurrentState;
+            if (state == PlayerStateId.Jump && _lastState != PlayerStateId.Jump)
+                AudioManager.Instance?.PlayJump();
+            _lastState = state;
+
             // 帧选择：Jump=上升帧、Fall=下降帧（按运动阶段），Idle/Run 时间循环。
             // 帧索引选择逻辑在纯 C# 的 PlayerAnimSelector 中（可 EditMode 单测）。
-            Sprite[] frames = SelectFrames(body.CurrentState);
+            Sprite[] frames = SelectFrames(state);
             if (frames == null || frames.Length == 0) return;
 
-            int index = _selector.Tick(body.CurrentState, Time.deltaTime, frames.Length);
+            int index = _selector.Tick(state, Time.deltaTime, frames.Length);
             _sr.sprite = frames[Mathf.Min(index, frames.Length - 1)];
         }
 

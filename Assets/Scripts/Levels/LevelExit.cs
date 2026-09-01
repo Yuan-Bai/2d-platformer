@@ -13,7 +13,10 @@ namespace Platformer.Levels
         private void OnTriggerEnter2D(Collider2D other)
         {
             if (other.TryGetComponent<PlayerBody>(out _))
+            {
+                AudioManager.Instance?.PlayDoor();
                 GameFlowController.Instance?.CompleteLevel();
+            }
         }
     }
 }

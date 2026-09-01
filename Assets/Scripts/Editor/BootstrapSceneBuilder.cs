@@ -18,6 +18,8 @@ namespace Platformer.EditorTools
         private const string BootstrapScenePath = "Assets/Scenes/00-Bootstrap.unity";
         private const string BackgroundMiddle = "Assets/Art/SunnyLand/environment/Background/middle.png";
         private const string FoxyIdleFrame = "Assets/Art/SunnyLand/Characters/Foxy/idle/sprites/f-01.png";
+        private const string MusicFolder = "Assets/Audio/Music/Adventure pack 1 ogg/";
+        private const string SfxFolder = "Assets/Audio/SFX/";
 
         [MenuItem("Tools/Platformer/Create Bootstrap Scene")]
         public static void CreateBootstrapScene()
@@ -44,6 +46,9 @@ namespace Platformer.EditorTools
             new GameObject("GameFlowController").AddComponent<GameFlowController>();
             new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
 
+            // 常驻音频管理器（M4c）：3 曲 + 6 音效 clip 集中装配
+            CreateAudioManager();
+
             if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
                 AssetDatabase.CreateFolder("Assets", "Scenes");
             EditorSceneManager.SaveScene(scene, BootstrapScenePath);
@@ -63,6 +68,34 @@ namespace Platformer.EditorTools
                 return;
             EditorSceneManager.OpenScene(BootstrapScenePath);
             EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>
+        /// 常驻音频管理器（M4c）：clip 单一事实源（机关/表现层只调 AudioManager 语义方法，零配置）。
+        /// 音乐 3 曲（菜单 exploration / 关卡 happywalking / 通关 Going Up）+ 音效 6 槽
+        /// （跳跃 jump1 / 樱桃 pickup1 / 弹簧 impactMetal_light / 死亡 lose1 / 门 confirmation / 点击 click）。
+        /// </summary>
+        private static void CreateAudioManager()
+        {
+            var audio = new GameObject("AudioManager").AddComponent<AudioManager>();
+            var so = new SerializedObject(audio);
+            so.FindProperty("menuMusic").objectReferenceValue = LoadAudio(MusicFolder + "exploration.ogg");
+            so.FindProperty("levelMusic").objectReferenceValue = LoadAudio(MusicFolder + "happywalking.ogg");
+            so.FindProperty("gameClearMusic").objectReferenceValue = LoadAudio(MusicFolder + "Going Up.ogg");
+            so.FindProperty("jumpSfx").objectReferenceValue = LoadAudio(SfxFolder + "jump1.ogg");
+            so.FindProperty("cherrySfx").objectReferenceValue = LoadAudio(SfxFolder + "pickup1.ogg");
+            so.FindProperty("bumperSfx").objectReferenceValue = LoadAudio(SfxFolder + "impactMetal_light_000.ogg");
+            so.FindProperty("deathSfx").objectReferenceValue = LoadAudio(SfxFolder + "lose1.ogg");
+            so.FindProperty("doorSfx").objectReferenceValue = LoadAudio(SfxFolder + "confirmation_001.ogg");
+            so.FindProperty("clickSfx").objectReferenceValue = LoadAudio(SfxFolder + "click_001.ogg");
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static AudioClip LoadAudio(string path)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            if (clip == null) Debug.LogWarning($"BootstrapSceneBuilder: 音频缺失 {path}");
+            return clip;
         }
 
         // ==================== 常驻 UI 面板装配 ====================

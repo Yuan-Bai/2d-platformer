@@ -12,7 +12,10 @@ namespace Platformer.Mechanics
         private void OnTriggerEnter2D(Collider2D other)
         {
             if (other.TryGetComponent<PlayerBody>(out var player))
+            {
                 player.Die();
+                AudioManager.Instance?.PlayDeath();
+            }
         }
     }
 }

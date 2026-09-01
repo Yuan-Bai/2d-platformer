@@ -21,10 +21,15 @@ namespace Platformer.UI
             if (menuButton != null) menuButton.onClick.AddListener(OnMenuClicked);
         }
 
-        private void OnResumeClicked() => GameFlowController.Instance?.ResumeGame();
+        private void OnResumeClicked()
+        {
+            AudioManager.Instance?.PlayClick();
+            GameFlowController.Instance?.ResumeGame();
+        }
 
         private void OnMenuClicked()
         {
+            AudioManager.Instance?.PlayClick();
             var flow = GameFlowController.Instance;
             if (flow == null) return;
             flow.ResumeGame();

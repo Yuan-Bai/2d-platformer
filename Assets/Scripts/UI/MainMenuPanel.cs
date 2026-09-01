@@ -19,8 +19,17 @@ namespace Platformer.UI
             if (quitButton != null) quitButton.onClick.AddListener(OnQuitClicked);
         }
 
-        private void OnStartClicked() => GameFlowController.Instance?.StartGame();
-        private void OnQuitClicked() => GameFlowController.Instance?.QuitGame();
+        private void OnStartClicked()
+        {
+            AudioManager.Instance?.PlayClick();
+            GameFlowController.Instance?.StartGame();
+        }
+
+        private void OnQuitClicked()
+        {
+            AudioManager.Instance?.PlayClick();
+            GameFlowController.Instance?.QuitGame();
+        }
 
         private void Update()
         {

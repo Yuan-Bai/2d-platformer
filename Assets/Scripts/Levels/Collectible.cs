@@ -13,6 +13,7 @@ namespace Platformer.Levels
         private void OnTriggerEnter2D(Collider2D other)
         {
             if (other.TryGetComponent<PlayerBody>(out _) == false) return;
+            AudioManager.Instance?.PlayCherry();
             GameFlowController.Instance?.RegisterCherry();
             Destroy(gameObject);
         }
