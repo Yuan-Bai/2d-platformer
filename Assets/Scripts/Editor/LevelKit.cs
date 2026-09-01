@@ -401,7 +401,8 @@ namespace Platformer.EditorTools
             });
         }
 
-        /// <summary>常驻 UI 画布（ADR-0009）：ScreenSpaceOverlay + 1920×1080 参考分辨率缩放。</summary>
+        /// <summary>常驻 UI 画布（ADR-0009）：ScreenSpaceOverlay + 1920×1080 参考分辨率缩放 + GraphicRaycaster。
+        /// GraphicRaycaster 是 uGUI 交互必需（EventSystem 通过它做射线检测），缺失则按钮/滑条永远收不到点击。</summary>
         public static Canvas CreateHudCanvas()
         {
             var canvasGo = new GameObject("Canvas");
@@ -411,6 +412,7 @@ namespace Platformer.EditorTools
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
+            canvasGo.AddComponent<GraphicRaycaster>();
             return canvas;
         }
 

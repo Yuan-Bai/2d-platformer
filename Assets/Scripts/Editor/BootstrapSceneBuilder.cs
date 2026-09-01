@@ -39,6 +39,7 @@ namespace Platformer.EditorTools
             CreateMenuPanel(canvas.transform);
             CreatePausePanel(canvas.transform);
             CreateGameClearPanel(canvas.transform);
+            // EventSystem 由运行时 GameBootstrap.Awake 补全（Editor 程序集不能引用 InputSystem.UI 类型）
 
             new GameObject("GameFlowController").AddComponent<GameFlowController>();
             new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
