@@ -42,5 +42,23 @@ namespace Platformer.Cameras
                 framing.m_LookaheadIgnoreY = true;
             }
         }
+
+        /// <summary>
+        /// 切关重绑（ADR-0009，GameFlowController 调用）：
+        /// Follow 指向新关玩家 + Confiner 边界换新关 CameraBounds。
+        /// 换边界后必须 InvalidateCache，否则 Confiner 继续用旧关卡几何缓存（相机飞出边界）。
+        /// bounds 允许 null（如菜单态无边界时解绑）。
+        /// </summary>
+        public void Bind(Transform follow, PolygonCollider2D bounds)
+        {
+            followTarget = follow;
+            var vcam = GetComponent<CinemachineVirtualCamera>();
+            if (vcam == null) return;
+            vcam.Follow = follow;
+            var conf = vcam.GetComponent<CinemachineConfiner2D>();
+            if (conf == null) return;
+            conf.m_BoundingShape2D = bounds;
+            conf.InvalidateCache();
+        }
     }
 }

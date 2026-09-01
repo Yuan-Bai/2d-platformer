@@ -195,11 +195,23 @@ namespace Platformer.Player
         /// <summary>重生：传送回 RespawnPosition（上抬防卡碰撞），清速度与输入，解除死亡冻结。</summary>
         private void Respawn()
         {
-            _rb.MovePosition(new Vector2(RespawnPosition.x, RespawnPosition.y + respawnLift));
+            // 直接写 _rb.position（而非 MovePosition）：MovePosition 在 FixedUpdate 之外调用时
+            // 效果延迟到下一物理步才反映到 transform，切关传送（Update 里触发）断言会读到旧位置。
+            _rb.position = new Vector2(RespawnPosition.x, RespawnPosition.y + respawnLift);
             _rb.velocity = Vector2.zero;
             _motor.Reset();
             _input.ClearPending(); // 丢弃冻结期间锁存的跳跃事件，防止重生瞬间幽灵起跳
             _dead = false;
+        }
+
+        /// <summary>
+        /// 切关/外部重置入口（ADR-0009，GameFlowController 调用）：
+        /// 设新出生点并立即重生——与死亡重生共用同一条重置路径（位置/速度/状态/输入缓冲全清）。
+        /// </summary>
+        public void RespawnAt(Vector3 position)
+        {
+            RespawnPosition = position;
+            Respawn();
         }
     }
 }

@@ -14,10 +14,10 @@ using Platformer.Player;
 namespace Platformer.EditorTools
 {
     /// <summary>
-    /// 关卡生成器（ADR-0006）：Assets/Levels/*.json → Assets/Scenes/Levels/*.unity。
-    /// 菜单 Tools/Platformer/Build All Levels：解析+校验 → 装配 4 个关卡场景 + 通关画面 → 更新 Build Settings 顺序。
-    /// 组件装配统一走 LevelKit 工厂（与预制体/手工搭关共用单一事实源）；本类只承载 JSON 管线特有逻辑
-    /// （解析/校验/tilemap 地形选块/单向平台连续段/关卡链编排）。
+    /// 关卡生成器（ADR-0006 + ADR-0009）：Assets/Levels/*.json → Assets/Scenes/Levels/*.unity。
+    /// 菜单 Tools/Platformer/Build All Levels：解析+校验 → 装配 4 个关卡内容场景 → 更新 Build Settings 顺序。
+    /// ADR-0009 起关卡场景只装关卡内容（地形/机关/SpawnPoint/LevelConfig/CameraBounds/视差），
+    /// 玩家/相机/HUD 常驻 00-Bootstrap；组件装配统一走 LevelKit 工厂（单一事实源）。
     /// 生成后的场景归用户自由编辑（混合分工）；重新生成会整体覆盖该场景。
     /// </summary>
     public static class LevelBuilder
@@ -25,6 +25,7 @@ namespace Platformer.EditorTools
         private const string LevelsFolder = "Assets/Levels";
         private const string ScenesFolder = "Assets/Scenes/Levels";
         private const string TilesFolder = "Assets/Tiles";
+        private const string BootstrapScene = "Assets/Scenes/00-Bootstrap.unity";
 
         // 地形选块（设计文档 §2，用户目视确认）：表面 = 草顶（3 变体按列轮换），内部 = 纯岩
         private static readonly string[] GrassTiles = { "tileset_0", "tileset_1", "tileset_2" };
@@ -32,7 +33,7 @@ namespace Platformer.EditorTools
 
         private static readonly string[] LevelOrder =
         {
-            "01-Tutorial", "02-ForestPath", "03-SkyBridge", "04-ThornForest", "05-GameClear",
+            "01-Tutorial", "02-ForestPath", "03-SkyBridge", "04-ThornForest",
         };
 
         [MenuItem("Tools/Platformer/Build All Levels")]
@@ -45,7 +46,6 @@ namespace Platformer.EditorTools
             }
 
             var datas = new List<LevelData>();
-            int totalCherries = 0;
             foreach (var file in Directory.GetFiles(LevelsFolder, "*.json").OrderBy(f => f))
             {
                 if (!LevelData.TryParse(File.ReadAllText(file), out var data, out string parseError))
@@ -66,7 +66,6 @@ namespace Platformer.EditorTools
                     continue;
                 }
                 datas.Add(data);
-                totalCherries += CountChar(data, LevelData.Cherry);
             }
 
             if (datas.Count == 0)
@@ -78,33 +77,36 @@ namespace Platformer.EditorTools
             if (!AssetDatabase.IsValidFolder(ScenesFolder))
                 AssetDatabase.CreateFolder("Assets/Scenes", "Levels");
 
-            // 关卡链（ADR-0007）：nextScene = 清单中的下一个场景（最后是通关画面）
+            // 关卡链（ADR-0009）：顺序由 GameFlowController 常驻列表决定，关卡场景不再内嵌 nextScene
             foreach (var data in datas)
-            {
-                int index = Array.IndexOf(LevelOrder, data.scene);
-                BuildLevelScene(data, LevelOrder[index + 1]);
-            }
-            BuildGameClearScene(totalCherries);
+                BuildLevelScene(data);
 
-            // Build Settings 顺序 = 关卡链（过关 → 下一场景的基础）
-            EditorBuildSettings.scenes = LevelOrder
-                .Select(n => new EditorBuildSettingsScene($"{ScenesFolder}/{n}.unity", true))
-                .ToArray();
+            // Build Settings = [00-Bootstrap, 关卡链, ...其他既有场景]。
+            // 合并而非覆盖：保留既有列表里的非关卡场景（测试夹具 TestLevelA/B 等；
+            // PlayMode 测试的 LoadScene 依赖它们在 Build Settings，进入 Play 后运行时列表才可加载）。
+            var scenes = new List<EditorBuildSettingsScene>();
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(BootstrapScene) != null)
+                scenes.Add(new EditorBuildSettingsScene(BootstrapScene, true));
+            else
+                Debug.LogWarning("LevelBuilder: 缺 00-Bootstrap 场景 —— 先跑 Tools/Platformer/Create Bootstrap Scene");
+            scenes.AddRange(LevelOrder.Select(n => new EditorBuildSettingsScene($"{ScenesFolder}/{n}.unity", true)));
+            foreach (var existing in EditorBuildSettings.scenes)
+                if (!scenes.Exists(s => s.path == existing.path))
+                    scenes.Add(existing);
+            EditorBuildSettings.scenes = scenes.ToArray();
 
-            Debug.Log($"LevelBuilder: 完成。关卡 {datas.Count} 个 + 通关画面 → {ScenesFolder}；" +
-                      $"Build Settings 已按关卡链排序（共 {LevelOrder.Length} 个场景）。");
+            Debug.Log($"LevelBuilder: 完成。关卡 {datas.Count} 个 → {ScenesFolder}；" +
+                      $"Build Settings 已按 [Bootstrap + 关卡链] 排序（共 {scenes.Count} 个场景）。");
         }
 
         // ---------------- 单个关卡场景 ----------------
 
-        private static void BuildLevelScene(LevelData data, string nextScene)
+        private static void BuildLevelScene(LevelData data)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             int height = data.Height;
             int width = data.Width;
             int GridY(int row) => height - 1 - row; // map 行 0（顶部）→ tilemap 网格 y
-
-            var camera = LevelKit.CreateMainCamera();
 
             CreateTerrain(data);
 
@@ -191,7 +193,8 @@ namespace Platformer.EditorTools
                 }
             }
 
-            // 玩家：出生在 P 单元格上方 1.9m（新盒高 1.6，底距地面 0.05m，落下即站稳）
+            // 出生点标记（ADR-0009）：玩家常驻 00-Bootstrap，切关时 GameFlowController 按本标记重置玩家。
+            // 位置同原玩家出生点：P 单元格上方 1.9m（新盒高 1.6，底距地面 0.05m，重生上抬后落下即站稳）。
             int pCol = -1;
             int pRow = -1;
             for (int r = 0; r < height && pCol < 0; r++)
@@ -208,20 +211,19 @@ namespace Platformer.EditorTools
                     }
                 }
             }
-            // 预制体化（M3）：Player 与 CameraRig 从 prefab 实例化——改 prefab 资产（或场景实例 Apply 回 prefab）
-            // → 下次 Build All Levels 全场景同步；不再每场景独立装配。
-            var player = LevelKit.InstantiatePlayer(new Vector3(pCol + 0.5f, GridY(pRow) + 1.9f, 0f));
+            var spawnGo = new GameObject("SpawnPoint");
+            spawnGo.AddComponent<SpawnPoint>();
+            spawnGo.transform.position = new Vector3(pCol + 0.5f, GridY(pRow) + 1.9f, 0f);
 
-            LevelKit.InstantiateCameraRig(player.transform, width, height);
+            LevelKit.CreateCameraBounds(width, height);
 
-            LevelKit.CreateParallax(camera);
+            LevelKit.CreateParallax();
 
-            LevelKit.CreateHud();
-
-            var manager = new GameObject("LevelManager").AddComponent<LevelManager>();
-            manager.Configure(player.GetComponent<PlayerBody>(), CountChar(data, LevelData.Cherry), nextScene);
-
-            new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
+            var configGo = new GameObject("LevelConfig");
+            var config = configGo.AddComponent<LevelConfig>();
+            var so = new SerializedObject(config);
+            so.FindProperty("totalCherries").intValue = CountChar(data, LevelData.Cherry);
+            so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, $"{ScenesFolder}/{data.scene}.unity");
         }
@@ -288,37 +290,6 @@ namespace Platformer.EditorTools
                     go.transform.SetParent(group("OneWayPlatforms"), false);
                 }
             }
-        }
-
-        private static void BuildGameClearScene(int totalCherries)
-        {
-            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            LevelKit.CreateMainCamera();
-
-            var canvasGo = new GameObject("Canvas");
-            var canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGo.AddComponent<CanvasScaler>();
-
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            labelGo.transform.SetParent(canvasGo.transform, false);
-            var rt = (RectTransform)labelGo.transform;
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            var label = labelGo.AddComponent<Text>();
-            label.fontSize = 48;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-
-            var screen = canvasGo.AddComponent<GameClearScreen>();
-            var so = new SerializedObject(screen);
-            so.FindProperty("label").objectReferenceValue = label;
-            so.FindProperty("totalAcrossGame").intValue = totalCherries;
-            so.ApplyModifiedPropertiesWithoutUndo();
-
-            new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
-
-            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), $"{ScenesFolder}/05-GameClear.unity");
         }
 
         private static int CountChar(LevelData data, char target)

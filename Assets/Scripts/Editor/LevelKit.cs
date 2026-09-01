@@ -318,11 +318,19 @@ namespace Platformer.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var conf = vcamGo.GetComponent<CinemachineConfiner2D>();
+            conf.m_BoundingShape2D = CreateCameraBounds(width, height).GetComponent<PolygonCollider2D>();
+        }
+
+        /// <summary>
+        /// 相机边界（关卡场景级对象）：矩形 PolygonCollider2D + CameraBoundsAnchor 标记（ADR-0009 切关重绑锚点）。
+        /// confiner 只读几何、不做物理（bug 修复）：
+        /// 非 trigger 的实心多边形会把出生在地图内的玩家刚体推出场景（"启动被弹出"根因）。
+        /// → isTrigger（无推挤）+ Ignore Raycast 层（地面探测排除、语义"纯几何"）。
+        /// </summary>
+        public static GameObject CreateCameraBounds(float width, float height)
+        {
             var boundsGo = new GameObject("CameraBounds");
             var poly = boundsGo.AddComponent<PolygonCollider2D>();
-            // confiner 只读几何、不做物理（bug 修复）：
-            // 非 trigger 的实心多边形会把出生在地图内的玩家刚体推出场景（"启动被弹出"根因）。
-            // → isTrigger（无推挤）+ Ignore Raycast 层（地面探测排除、语义"纯几何"）。
             poly.isTrigger = true;
             int ignoreRaycast = LayerMask.NameToLayer("Ignore Raycast");
             if (ignoreRaycast >= 0) boundsGo.layer = ignoreRaycast;
@@ -334,12 +342,14 @@ namespace Platformer.EditorTools
                 new Vector2(width + margin, height + margin),
                 new Vector2(-margin, height + margin),
             });
-            conf.m_BoundingShape2D = poly;
+            boundsGo.AddComponent<CameraBoundsAnchor>();
+            return boundsGo;
         }
 
         /// <summary>
         /// 从 Player.prefab 实例化（预制体化：改 prefab 资产 → 全场景同步）。
         /// prefab 缺失时退回代码装配并告警（新环境未跑 Build Prefabs 的保底）。
+        /// 用途：Bootstrap 常驻场景装配（ADR-0009 起玩家只存在于常驻层）。
         /// </summary>
         public static GameObject InstantiatePlayer(Vector3 position)
         {
@@ -355,31 +365,30 @@ namespace Platformer.EditorTools
         }
 
         /// <summary>
-        /// 从 CameraRig.prefab 实例化 + 配置场景级引用（Follow / CameraBounds / Confiner）。
+        /// 从 CameraRig.prefab 实例化核心（无场景级引用装配，Follow/CameraBounds 由运行时切关重绑）。
         /// prefab 缺失时退回代码装配并告警。
+        /// 用途：Bootstrap 常驻场景装配（ADR-0009 起相机只存在于常驻层）。
         /// </summary>
-        public static GameObject InstantiateCameraRig(Transform follow, float width, float height)
+        public static GameObject InstantiateCameraRigCore()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabsFolder}/CameraRig.prefab");
-            GameObject vcamGo;
             if (prefab == null)
             {
                 Debug.LogWarning("LevelKit: 缺 CameraRig.prefab —— 先跑 Tools/Platformer/Build Prefabs；本次退回代码装配");
-                vcamGo = CreateCameraRigCore();
+                return CreateCameraRigCore();
             }
-            else
-            {
-                vcamGo = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-            }
-            ConfigureCameraRig(vcamGo, follow, width, height);
-            return vcamGo;
+            return (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         }
 
-        public static void CreateParallax(Camera cam)
+        /// <summary>
+        /// 两层视差背景（层定义同各关）。相机引用留空：运行时兜底 Camera.main
+        /// （ADR-0009 起相机常驻 Bootstrap，关卡场景生成时相机尚不存在）。
+        /// </summary>
+        public static void CreateParallax()
         {
             var go = new GameObject("Parallax");
             var para = go.AddComponent<ParallaxBackground>();
-            para.Configure(cam, new[]
+            para.Configure(null, new[]
             {
                 new ParallaxBackground.Layer
                 {
@@ -392,7 +401,8 @@ namespace Platformer.EditorTools
             });
         }
 
-        public static void CreateHud()
+        /// <summary>常驻 UI 画布（ADR-0009）：ScreenSpaceOverlay + 1920×1080 参考分辨率缩放。</summary>
+        public static Canvas CreateHudCanvas()
         {
             var canvasGo = new GameObject("Canvas");
             var canvas = canvasGo.AddComponent<Canvas>();
@@ -401,6 +411,13 @@ namespace Platformer.EditorTools
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
+            return canvas;
+        }
+
+        /// <summary>HUD 元素挂到常驻 Canvas 下：CherryHud（左上角）+ HintBar（底部居中）。</summary>
+        public static void CreateHud(Canvas canvas)
+        {
+            var canvasGo = canvas.gameObject;
 
             // --- CherryHud（左上角） ---
             var hudGo = new GameObject("CherryHud", typeof(RectTransform));
@@ -511,27 +528,40 @@ namespace Platformer.EditorTools
 
         // ==================== 菜单：手工搭关脚手架 ====================
 
+        /// <summary>
+        /// 关卡内容脚手架（ADR-0009 手工管线）：地形 + SpawnPoint + LevelConfig + CameraBounds + 视差。
+        /// 玩家/相机/HUD 已常驻 00-Bootstrap，本场景只装关卡内容。
+        /// 手工流程：Tile Palette 刷地形 → 拖 Assets/Prefabs 机关 → 场景名加入 GameFlowController 关卡列表
+        /// → Build Settings → 从 00-Bootstrap 启动游玩。
+        /// </summary>
         [MenuItem("Tools/Platformer/New Level Scaffold")]
         public static void NewLevelScaffold()
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            var camera = CreateMainCamera();
             CreateTerrainRig();
-            InstantiateCameraRig(null, 60f, 20f); // Follow Target 由用户在 Inspector 拖入 Player
-            CreateParallax(camera);
-            CreateHud();
-            new GameObject("LevelManager").AddComponent<LevelManager>(); // Inspector 配置 player/totalCherries/nextSceneName
-            new GameObject("GameBootstrap").AddComponent<GameBootstrap>();
+            CreateCameraBounds(60f, 20f);
+            CreateParallax();
+
+            var spawnGo = new GameObject("SpawnPoint");
+            spawnGo.AddComponent<SpawnPoint>();
+            spawnGo.transform.position = new Vector3(1f, 1f, 0f); // 用户自行移动到出生点
+
+            var configGo = new GameObject("LevelConfig");
+            var config = configGo.AddComponent<LevelConfig>();
+            var so = new SerializedObject(config);
+            so.FindProperty("totalCherries").intValue = 0;
+            so.ApplyModifiedPropertiesWithoutUndo();
 
             if (!AssetDatabase.IsValidFolder("Assets/Scenes/Levels"))
                 AssetDatabase.CreateFolder("Assets/Scenes", "Levels");
             EditorSceneManager.SaveScene(scene, "Assets/Scenes/Levels/Custom.unity");
 
-            Debug.Log("脚手架已生成 Assets/Scenes/Levels/Custom.unity。手工流程：\n" +
+            Debug.Log("关卡内容脚手架已生成 Assets/Scenes/Levels/Custom.unity。手工流程：\n" +
                       " 1) Window > 2D > Tile Palette：新建调色板，把 Assets/Tiles 的 tileset_0~3 拖入；选中 Ground(Tilemap) 刷地形\n" +
-                      " 2) 从 Assets/Prefabs 拖机关/樱桃/门/玩家进场景（玩家摆出生点）\n" +
-                      " 3) Inspector：Player VCam 的 Follow Target 拖入 Player；LevelManager 填 player/totalCherries/nextSceneName\n" +
-                      " 4) File > Build Settings 把本场景加入列表");
+                      " 2) 从 Assets/Prefabs 拖机关/樱桃/门进场景；把 SpawnPoint 移到出生点；LevelConfig 填樱桃总数\n" +
+                      " 3) CameraBounds 的多边形形状 = 关卡边界（Inspector 直接调 PolygonCollider2D）\n" +
+                      " 4) File > Build Settings 加入本场景；把场景名加进 00-Bootstrap 的 GameFlowController.levelSceneNames\n" +
+                      " 5) 游玩一律从 Tools/Platformer/Play From Bootstrap 进入");
         }
     }
 }
