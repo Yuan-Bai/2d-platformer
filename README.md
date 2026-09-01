@@ -38,19 +38,29 @@ Assets/Scripts/
 │                 PlayerVisuals + PlayerAnimSelector 帧动画）
 ├── Mechanics/    机关（单向平台/弹簧/移动平台/尖刺/重生点/樱桃/门/路牌）
 ├── Camera/       PlayerCameraRig（Cinemachine 相机封装）
-├── Levels/       关卡数据（LevelData 解析 + LevelValidator 校验）
-├── UI/           HUD（樱桃计数/提示栏/通关画面）
+├── Levels/       关卡数据（LevelData 解析 + LevelValidator 校验；SpawnPoint/LevelConfig）
+├── UI/           HUD（樱桃计数/提示栏）+ 面板（主菜单/暂停/通关）
+├── GameFlowController.cs   常驻流程控制器（Menu/Playing/LevelClear/GameClear，Additive 切关）
+├── AudioManager.cs         常驻音频（音乐随流程切曲 + 6 语义音效）
 └── Editor/       LevelKit（组件装配单一事实源）、LevelBuilder（JSON→场景）、
+                  BootstrapSceneBuilder（00-Bootstrap 场景/主菜单/暂停面板）、
                   TestRoomBuilder、SunnyLandArtTools（素材批处理）
-Assets/Tests/     EditMode 43 + PlayMode 12（Test Runner 运行）
+Assets/Tests/     EditMode 43 + PlayMode 21（Test Runner 运行）
 ```
+
+## 运行与打包
+
+- 编辑器：菜单 `Tools/Platformer/Play From Bootstrap`（或直接打开 `Assets/Scenes/00-Bootstrap.unity` 点 Play）
+- 打包：菜单 File > Build Settings 或 `Tools` 流程；Windows x64 release 输出到 `Builds/Windows64/`（已 gitignore）
+- 窗口：1280×720 窗口化，Alt+Enter 切全屏
 
 ## 素材与许可
 
 - **美术**：Ansimuz（Luis Zuno）Sunny Land —— **CC0**（`Assets/Art/SunnyLand/public-license.pdf`），个人/商用/修改/再分发无限制
   - https://ansimuz.itch.io/sunny-land-pixel-game-art
 - **音乐**：Sunny Land Music 两包 —— 个人/商用均可、可修改、可再分发，署名不强制但欢迎（`Assets/Audio/Music/` 内 public-license.txt）
-- Credit：Artwork & Music by Luis Zuno (@ansimuz)
+- **音效**：Kenney（Retro Sounds / Impact Sounds / Interface Sounds）—— **CC0**（`Assets/Audio/SFX/` 内 License-Kenney.txt、License-RetroSounds.txt）
+- Credit：Artwork & Music by Luis Zuno (@ansimuz)、SFX by Kenney
 
 ## 里程碑
 
@@ -58,5 +68,5 @@ Assets/Tests/     EditMode 43 + PlayMode 12（Test Runner 运行）
 - [x] M1 手感核心（运动深模块 + 状态机 + 测试 + 物理根因修复）
 - [x] M2 关卡机制（单向平台/弹簧/移动平台/尖刺+重生）
 - [x] M3 关卡内容（教学关 + 3 正式关 + 通关画面；Player/CameraRig 预制体化；碰撞几何生成修复）
-- [ ] M4 收尾（跨场景常驻重构、主菜单/音效/打包）
+- [x] M4 收尾（跨场景常驻重构、主菜单/暂停/音效/打包）
 - [ ] M5 动作扩展（冲刺/滑墙/蹬墙跳/二段跳——2D 沙盒验证，为 3D 项目打基础）
