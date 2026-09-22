@@ -24,7 +24,7 @@
 | JSON 管线 | 编辑 `Assets/Levels/*.json`（`map` 字符串 + 机关元数据）→ 菜单 `Tools/Platformer/Build All Levels` 重新生成 | 结构性改关（地形/机关布局） |
 | 手工管线 | Tile Palette 刷 Ground(Tilemap) + 拖 `Assets/Prefabs/` 预制体（`New Level Scaffold` 建脚手架） | 微调/实验关 |
 
-字符对照：`#`=地形、`=`=单向平台、`M`=移动平台、`B`=弹簧、`^`=尖刺、`C`=重生点、`o`=樱桃、`D`=门、`S`=路牌、`P`=出生点。1 字符 = 1 米。
+字符对照：`#`=地形、`=`=单向平台、`M`=移动平台、`B`=弹簧、`X`=尖刺、`C`=重生点、`c`=樱桃、`D`=门、`S`=路牌、`P`=出生点。1 字符 = 1 米。
 
 注意：**手工改场景对象会在下次 Build All Levels 时被覆盖**；共享对象（Player/CameraRig）改参数请改 `Assets/Prefabs/` 下对应预制体。
 
